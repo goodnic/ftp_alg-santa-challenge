@@ -139,9 +139,9 @@ if __name__ == "__main__":
             path.insert(0,(90,0))
             path.append((90,0))
 
-            i += 1
+        i += 1
 
-            visualizer.add_route(path)
+        visualizer.add_route(path)
 
     # Save map (better performance when viewing)
     visualizer.save_map(map_export_path)
