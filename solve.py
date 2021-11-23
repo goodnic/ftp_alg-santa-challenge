@@ -6,7 +6,7 @@ from sys import argv
 
 import numpy as np
 import pandas as pd
-from haversine import haversine
+from haversine import haversine, haversine_vector
 
 from check import north_pole, weight_limit
 
@@ -25,7 +25,7 @@ def export(solution: pd.DataFrame, path: str):
         f.write(solution.to_csv(index=False))
 
 
-def one_gift_per_trip(gifts: pd.DataFrame):
+def one_gift_per_trip(gifts: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(
         columns=SOLUTION_COLUMNS,
         data=zip(gifts.index, gifts.index - 1)
@@ -35,14 +35,9 @@ def one_gift_per_trip(gifts: pd.DataFrame):
 def nearest_neighbor(gifts: pd.DataFrame) -> pd.DataFrame:
     """nearest neighbor with full sleigh"""
     def _get_next_gift(loc: location) -> giftid:
-        nearest_gift = (0, inf)
-        for idx, gift in gifts.iterrows():
-            distance = haversine(loc, (gift.Latitude, gift.Longitude))
-            if distance < nearest_gift[1]:
-                nearest_gift = (idx, distance)
-        if nearest_gift[1] == inf:
-            raise Exception("No nearest gift found")
-        return nearest_gift[0]
+        distances = haversine_vector([loc]*len(gifts),
+                                     list(zip(gifts.Latitude, gifts.Longitude)))
+        return gifts.index[distances.argmin()]
 
     trip_id = 0
     weight = 0
