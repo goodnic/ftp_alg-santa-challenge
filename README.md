@@ -1,8 +1,9 @@
 ### Dependencies
 
 ```
-pip install haversine folium branca
+pip3 install -r requirements.txt
 ```
+If it does not work substitute *pip3* with *pip*
 
 ### Run
 
