@@ -1,23 +1,25 @@
 #!/bin/env python3
-from __future__ import annotations
-
+import copy
 from math import inf
 from sys import argv
+from typing import Callable
 
-import numpy as np
-import pandas as pd
-from haversine import haversine, haversine_vector
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
+from haversine import haversine_vector  # type: ignore
 
-from check import north_pole, weight_limit
+import check
 
 # type aliases
-lat = int
-lon = int
+lat = np.int64
+lon = np.int64
 location = tuple[lat, lon]
 tripid = int
-giftid = int
+giftid = np.int64
 
 SOLUTION_COLUMNS = ["GiftId", "TripId"]
+NORTH_POLE = check.north_pole
+WEIGHT_LIMIT = check.weight_limit
 
 
 def export(solution: pd.DataFrame, path: str):
@@ -25,57 +27,123 @@ def export(solution: pd.DataFrame, path: str):
         f.write(solution.to_csv(index=False))
 
 
-def one_gift_per_trip(gifts: pd.DataFrame) -> pd.DataFrame:
-    return pd.DataFrame(
-        columns=SOLUTION_COLUMNS,
-        data=zip(gifts.index, gifts.index - 1)
-    )
+def weighted_reindeer_weariness(gifts: pd.DataFrame,
+                                trips: list[tuple[giftid, tripid]]) -> float:
+    solution = pd.DataFrame(columns=SOLUTION_COLUMNS, data=trips)
+    df = pd.merge(solution, gifts.reset_index(), how='left')
+    df['Position'] = list(zip(df['Latitude'], df['Longitude']))
+    return check.weighted_reindeer_weariness(df)
 
 
-def nearest_neighbor(gifts: pd.DataFrame) -> pd.DataFrame:
-    """nearest neighbor with full sleigh"""
-    def _get_next_gift(loc: location) -> giftid:
-        distances = haversine_vector([loc]*len(gifts),
-                                     list(zip(gifts.Latitude, gifts.Longitude)))
-        return gifts.index[distances.argmin()]
-
-    trip_id = 0
-    weight = 0
-    loc: location = north_pole
-    trips: list[tuple[giftid, tripid]] = []
-    gifts = gifts.copy()
-
-    for _ in range(len(gifts)):
-        gift_id = _get_next_gift(loc)
-        gift = gifts.loc[gift_id]
-        if (weight + gift.Weight) > weight_limit:
-            trip_id += 1
-            weight = 0
-        weight += gift.Weight
-        trips.append((gift_id, trip_id))
-        loc = (gift.Latitude, gift.Longitude)
-        gifts.drop(index=gift_id, inplace=True)
-
-    return pd.DataFrame(columns=SOLUTION_COLUMNS, data=trips)
+class State:
+    def __init__(self, gifts):
+        self.trip_id: int = 0
+        self.weight: float = 0
+        self.loc: location = NORTH_POLE
+        self.trips: list[tuple[giftid, tripid]] = []
+        self.gifts: pd.DataFrame = gifts.copy()
 
 
-def pilot_method():
-    raise NotImplementedError
+#
+# Heuristics
+#
 
 
-def beam_search():
-    raise NotImplementedError
+def nearest_neighbor_heuristic(state: State, n: int = 0):
+    """
+    nearest neighbor with full sleigh
+
+    finds nth nearest gift and updates state accordingly
+    """
+    def _get_next_gift(loc: location, n: int) -> giftid:
+        distances = haversine_vector(
+            [loc]*len(state.gifts),
+            list(zip(state.gifts.Latitude, state.gifts.Longitude)))
+        for _ in range(n):
+            distances[distances.argmin()] = inf
+        return state.gifts.index[distances.argmin()]
+
+    gift_id = _get_next_gift(state.loc, n)
+    gift = state.gifts.loc[gift_id]
+    if (state.weight + gift.Weight) > WEIGHT_LIMIT:
+        state.trip_id += 1
+        state.weight = 0
+    state.weight += gift.Weight
+    state.trips.append((gift_id, state.trip_id))
+    state.loc = (gift.Latitude, gift.Longitude)
+    state.gifts.drop(index=gift_id, inplace=True)
 
 
-if __name__ == '__main__' and '__file__' in globals():
-    export_path = argv[1]
+#
+# Meta-Heuristics
+#
+
+
+def beam_search(gifts: pd.DataFrame,
+                heuristic: Callable[[pd.DataFrame, int], pd.DataFrame],
+                beam_width: int = 2) -> State:
+    """beam search with browse depth of 1"""
+
+    state = State(gifts)
+    for _ in range(len(state.gifts)):
+        heuristic(state)
+    base_state = state
+
+    state = State(gifts)
+
+    while not state.gifts.empty:
+        sub_states = [copy.deepcopy(state) for _ in range(beam_width)]
+        [heuristic(sub_states[n], n) for n in range(beam_width)]
+        fork_states = copy.deepcopy(sub_states)
+
+        # n=0 case is already done
+        sub_states[0] = base_state
+
+        for sub_state in sub_states[1:]:
+            for _ in range(len(sub_state.gifts)):
+                heuristic(sub_state)
+
+        wrws = [weighted_reindeer_weariness(gifts, s.trips) for s in sub_states]
+        idx = np.argmin(wrws)
+        state = fork_states[idx]
+        base_state = sub_states[idx]
+
+    return state
+
+
+def nearest_neighbor(gifts: pd.DataFrame) -> State:
+    state = State(gifts)
+    for _ in range(len(state.gifts)):
+        nearest_neighbor_heuristic(state)
+    return state
+
+
+def main():
+    export_path = None
+    try:
+        export_path = argv[1]
+    except IndexError:
+        print("Not exporting to csv (no path supplied)")
 
     gifts = pd.read_csv("./data/gifts.csv", index_col="GiftId")
 
     # only use a few gifts (takes forever otherwise)
-    gifts = gifts[:1000]
+    gifts = gifts[:100]
 
-    # solution = one_gift_per_trip(gifts)
-    solution = nearest_neighbor(gifts)
+    state = nearest_neighbor(gifts)
+    print("nearest neighbor:")
+    print(weighted_reindeer_weariness(gifts, state.trips))
 
-    export(solution, export_path)
+    state = beam_search(gifts, nearest_neighbor_heuristic, beam_width=2)
+    print("beam search with nearest neighbor:")
+    print(weighted_reindeer_weariness(gifts, state.trips))
+
+    if export_path is not None:
+        export(pd.DataFrame(columns=SOLUTION_COLUMNS, data=state.trips),
+               export_path)
+
+    return 0
+
+
+if __name__ == '__main__' and '__file__' in globals():
+    exit(main())

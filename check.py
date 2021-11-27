@@ -1,11 +1,11 @@
 #!/bin/env python3
-from sys import argv
-import pandas as pd
-# I couldn't see an improvement in using cHaversine
-from haversine import haversine
-import folium
 import random
+from sys import argv
 
+import folium  # type: ignore
+import pandas as pd  # type: ignore
+# I couldn't see an improvement in using cHaversine
+from haversine import haversine  # type: ignore
 
 # globals
 north_pole = (90, 0)
@@ -105,10 +105,11 @@ class MapVisualizer:
 
 if __name__ == "__main__":
     submission = pd.read_csv(argv[1])
+    map_export_path = None
     try:
         map_export_path = argv[2]
     except IndexError:
-        map_export_path = None
+        print("Not exporting the map (no path supplied)")
 
     gifts = pd.read_csv('./data/gifts.csv')
     df = pd.merge(submission, gifts, how='left')
