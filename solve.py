@@ -27,11 +27,12 @@ def export(solution: pd.DataFrame, path: str):
         f.write(solution.to_csv(index=False))
 
 
-def weighted_reindeer_weariness(gifts: pd.DataFrame,
-                                trips: list[tuple[giftid, tripid]]) -> float:
+def weighted_reindeer_weariness(
+    gifts: pd.DataFrame, trips: list[tuple[giftid, tripid]]
+) -> float:
     solution = pd.DataFrame(columns=SOLUTION_COLUMNS, data=trips)
-    df = pd.merge(solution, gifts.reset_index(), how='left')
-    df['Position'] = list(zip(df['Latitude'], df['Longitude']))
+    df = pd.merge(solution, gifts.reset_index(), how="left")
+    df["Position"] = list(zip(df["Latitude"], df["Longitude"]))
     return check.weighted_reindeer_weariness(df)
 
 
@@ -55,10 +56,12 @@ def nearest_neighbor_heuristic(state: State, n: int = 0):
 
     finds nth nearest gift and updates state accordingly
     """
+
     def _get_next_gift(loc: location, n: int) -> giftid:
         distances = haversine_vector(
-            [loc]*len(state.gifts),
-            list(zip(state.gifts.Latitude, state.gifts.Longitude)))
+            [loc] * len(state.gifts),
+            list(zip(state.gifts.Latitude, state.gifts.Longitude)),
+        )
         for _ in range(n):
             distances[distances.argmin()] = inf
         return state.gifts.index[distances.argmin()]
@@ -79,9 +82,11 @@ def nearest_neighbor_heuristic(state: State, n: int = 0):
 #
 
 
-def beam_search(gifts: pd.DataFrame,
-                heuristic: Callable[[pd.DataFrame, int], pd.DataFrame],
-                beam_width: int = 2) -> State:
+def beam_search(
+    gifts: pd.DataFrame,
+    heuristic: Callable[[pd.DataFrame, int], pd.DataFrame],
+    beam_width: int = 2,
+) -> State:
     """beam search with browse depth of 1"""
 
     state = State(gifts)
@@ -143,11 +148,10 @@ def main():
     print(weighted_reindeer_weariness(gifts, state.trips))
 
     if export_path is not None:
-        export(pd.DataFrame(columns=SOLUTION_COLUMNS, data=state.trips),
-               export_path)
+        export(pd.DataFrame(columns=SOLUTION_COLUMNS, data=state.trips), export_path)
 
     return 0
 
 
-if __name__ == '__main__' and '__file__' in globals():
+if __name__ == "__main__" and "__file__" in globals():
     exit(main())
