@@ -88,10 +88,11 @@ def beam_search(gifts: pd.DataFrame,
     for _ in range(len(state.gifts)):
         heuristic(state)
     base_state = state
+    base_wrw = weighted_reindeer_weariness(gifts, base_state.trips)
 
     state = State(gifts)
 
-    while not state.gifts.empty:
+    for _ in range(len(state.gifts)):
         sub_states = [copy.deepcopy(state) for _ in range(beam_width)]
         [heuristic(sub_states[n], n) for n in range(beam_width)]
         fork_states = copy.deepcopy(sub_states)
@@ -103,10 +104,13 @@ def beam_search(gifts: pd.DataFrame,
             for _ in range(len(sub_state.gifts)):
                 heuristic(sub_state)
 
-        wrws = [weighted_reindeer_weariness(gifts, s.trips) for s in sub_states]
+        wrws = [base_wrw] + [
+            weighted_reindeer_weariness(gifts, s.trips) for s in sub_states[1:]
+        ]
         idx = np.argmin(wrws)
         state = fork_states[idx]
         base_state = sub_states[idx]
+        base_wrw = wrws[idx]
 
     return state
 
