@@ -18,7 +18,7 @@ tripid = int
 giftid = np.int64
 
 SOLUTION_COLUMNS = ["GiftId", "TripId"]
-NORTH_POLE = check.north_pole
+NORTH_POLE: location = check.north_pole
 WEIGHT_LIMIT = check.weight_limit
 
 
@@ -50,7 +50,7 @@ class State:
 #
 
 
-def nearest_neighbor_heuristic(state: State, n: int = 0):
+def nearest_neighbor_heuristic(state: State, n: int = 0) -> None:
     """
     nearest neighbor with full sleigh
 
@@ -119,7 +119,7 @@ def nearest_longitude_bins(gifts):
 
 def beam_search(
     gifts: pd.DataFrame,
-    heuristic: Callable[[pd.DataFrame, int], pd.DataFrame],
+    heuristic: Callable[[State, int], None],
     beam_width: int = 2,
 ) -> State:
     """beam search with browse depth of 1"""
@@ -155,9 +155,7 @@ def beam_search(
     return state
 
 
-def simple(
-    gifts: pd.DataFrame, heuristic: Callable[[pd.DataFrame], pd.DataFrame]
-) -> State:
+def simple(gifts: pd.DataFrame, heuristic: Callable[[State], None]) -> State:
     state = State(gifts)
     for _ in range(len(state.gifts)):
         heuristic(state)
