@@ -120,10 +120,12 @@ def beam_search(
     return state
 
 
-def nearest_neighbor(gifts: pd.DataFrame) -> State:
+def simple(
+    gifts: pd.DataFrame, heuristic: Callable[[pd.DataFrame], pd.DataFrame]
+) -> State:
     state = State(gifts)
     for _ in range(len(state.gifts)):
-        nearest_neighbor_heuristic(state)
+        heuristic(state)
     return state
 
 
@@ -139,7 +141,7 @@ def main():
     # only use a few gifts (takes forever otherwise)
     gifts = gifts[:100]
 
-    state = nearest_neighbor(gifts)
+    state = simple(gifts, nearest_neighbor_heuristic)
     print("nearest neighbor:")
     print(weighted_reindeer_weariness(gifts, state.trips))
 
