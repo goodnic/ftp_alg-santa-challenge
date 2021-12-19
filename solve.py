@@ -18,7 +18,7 @@ tripid = int
 giftid = np.int64
 
 SOLUTION_COLUMNS = ["GiftId", "TripId"]
-NORTH_POLE: location = check.north_pole
+NORTH_POLE: location = check.north_pole  # type: ignore
 WEIGHT_LIMIT = check.weight_limit
 
 
@@ -77,39 +77,58 @@ def nearest_neighbor_heuristic(state: State, n: int = 0) -> None:
     state.gifts.drop(index=gift_id, inplace=True)
 
 
-def nearest_longitude_bins(gifts):
+def vertical_lines(gifts: pd.DataFrame) -> State:
+    """deliver gifts in sweep from west to east, carry as many gifts as possible"""
+
+    # order gifts by longitude (smalles first)
+    gifts_sorted = gifts.sort_values(by="Longitude")
+
+    # create the bins for the trips
+    bins = nearest_longitude_bins(gifts_sorted)
+
+    # sort each bin by longitude and assemble the trip (top to bottom)
+    state = State(gifts)
+    trip_id = 0
+    for trip_bin in bins:
+        trip_bin_sorted = trip_bin.sort_values(by="Latitude", ascending=False)
+
+        # add the trips to the state
+        for indx in trip_bin_sorted.index[:]:
+            state.trips.append((indx, trip_id))
+
+        trip_id += 1
+
+    return state
+
+
+def nearest_longitude_bins(gifts: pd.DataFrame) -> list[pd.DataFrame]:
     """
-    return bins of gifts, that are exactly below the weight limit
+    return bins of gifts that are exactly below the weight limit
 
-    it is assumed, the state is allready ordered by longitude
+    the state is assumed to be orderd by longitude
     """
-    def assemble_bin_from_ids(ids: list):
-        trip_bin = gifts.loc[ids]
 
-        return trip_bin
+    def assemble_bin_from_ids(ids: list[int]):
+        return gifts.loc[ids]
 
-    bins = list()
-    next_trip_bin_ids = list()
+    bins: list[pd.DataFrame] = list()
+    next_trip_bin_ids: list[giftid] = list()
     next_trip_weight = 0
-    for gift in gifts.iterrows():
-        gift_weight = gift[1][2]
-
+    for gift_id, gift in gifts.iterrows():
         # if weight is reached, start a new trip
-        if next_trip_weight + gift_weight > WEIGHT_LIMIT:
+        if next_trip_weight + gift.Weight > WEIGHT_LIMIT:
             bins.append(assemble_bin_from_ids(next_trip_bin_ids))
             next_trip_bin_ids = list()
             next_trip_weight = 0
 
         # add the current gift id to the trip
-        next_trip_bin_ids.append(gift[0])
-        next_trip_weight += gift_weight
+        next_trip_bin_ids.append(gift_id)
+        next_trip_weight += gift.Weight
 
     # add last bin aswell
     bins.append(assemble_bin_from_ids(next_trip_bin_ids))
 
     return bins
-
-
 
 
 #
@@ -126,7 +145,7 @@ def beam_search(
 
     state = State(gifts)
     for _ in range(len(state.gifts)):
-        heuristic(state)
+        heuristic(state, 0)
     base_state = state
     base_wrw = weighted_reindeer_weariness(gifts, base_state.trips)
 
@@ -142,7 +161,7 @@ def beam_search(
 
         for sub_state in sub_states[1:]:
             for _ in range(len(sub_state.gifts)):
-                heuristic(sub_state)
+                heuristic(sub_state, 0)
 
         wrws = [base_wrw] + [
             weighted_reindeer_weariness(gifts, s.trips) for s in sub_states[1:]
@@ -161,32 +180,6 @@ def simple(gifts: pd.DataFrame, heuristic: Callable[[State], None]) -> State:
         heuristic(state)
     return state
 
-def vertical_lines(gifts: pd.DataFrame) -> State:
-    # this basicaly delivers gift in sweep from west to east. 
-    # It caries as many gifts as possible
-
-    # order gifts by longitude (smalles first)
-    gifts_sorted = gifts.sort_values(by='Longitude')
-
-    # create the bins for the trips
-    bins = nearest_longitude_bins(gifts_sorted)
-
-    # sort each bin by longitude and assemble the trip (top to bottom)
-    state = State(gifts)
-    trip_id = 0
-    for trip_bin in bins:
-        trip_bin_sorted = trip_bin.sort_values(by='Latitude', ascending=False)
-
-        # add the trips to the state
-        for indx in trip_bin_sorted.index[:]:
-            state.trips.append((indx, trip_id))
-        # state.trips.append(
-
-        trip_id += 1
-
-    return state
-
-    
 
 def main():
     export_path = None
